@@ -1,8 +1,8 @@
-# Embedded Firmware Skills Repository
+# 嵌入式固件技能仓库
 
-This repository contains reusable skills for embedded firmware engineering.
+本仓库提供可复用的嵌入式固件工程技能。
 
-Skills are stored directly under `skills/`:
+所有技能直接存放在 `skills/` 下：
 
 ```text
 skills/
@@ -14,49 +14,49 @@ skills/
 └── embedded-rtos-design
 ```
 
-## Project Files
+## 项目文件
 
-- [CONTEXT.md](CONTEXT.md) — Project philosophy, technology stack, design principles
-- [CLAUDE.md](CLAUDE.md) — Repository rules and development guidelines
-- Each skill has its own `SKILL.md` with detailed rules and validation checklists
+- [CONTEXT.md](CONTEXT.md)：项目理念、技术栈和设计原则
+- [CLAUDE.md](CLAUDE.md)：仓库规则和开发指南
+- 每个技能都有独立的 `SKILL.md`，包含详细规则和检查清单
 
-## Skill Responsibilities
+## 技能职责
 
 - `embedded-architecture`
-  - Firmware architecture — project structure, layer separation, dependency direction, platform isolation
+  - 固件架构：项目结构、分层、依赖方向和平台隔离
 
 - `embedded-cstyle`
-  - C coding standards — naming, types, functions, variables, macros, headers, memory, error handling
+  - C 编码规范：命名、类型、函数、变量、宏、头文件、内存和错误处理
 
 - `embedded-documentation`
-  - Documentation generation — 5-level doc framework: project, module, interface, RTOS/ISR, control
+  - 文档生成：项目、模块、接口、RTOS/ISR、控制共五级文档体系
 
 - `embedded-driver-design`
-  - Driver layered design — bus abstraction, device context, register encapsulation, mock testing
+  - 驱动分层设计：总线抽象、设备上下文、寄存器封装和模拟测试
 
 - `embedded-isr-design`
-  - Interrupt design — Fast In Fast Out, event capture, FromISR API, deferred processing
+  - 中断设计：快进快出、事件捕获、FromISR API 和延后处理
 
 - `embedded-rtos-design`
-  - RTOS system architecture — task decomposition, scheduling, priorities, inter-task communication, watchdog
+  - RTOS 系统架构：任务划分、调度、优先级、任务间通信和看门狗
 
-## Repository Rules
+## 仓库规则
 
-Every skill must:
+每个技能必须：
 
-1. Reside directly under `skills/`
-2. Contain a valid `SKILL.md`
-3. Be registered in `.claude-plugin/plugin.json`
-4. Be listed in this document
+1. 直接存放在 `skills/` 下
+2. 包含有效的 `SKILL.md`
+3. 在 `.claude-plugin/plugin.json` 中注册
+4. 在本文档中列出
 
-## Skill Development Guidelines
+## 技能开发指南
 
-When creating or modifying skills:
+创建或修改技能时：
 
-- Keep responsibilities focused and single-purpose
-- Avoid overlapping functionality between skills
-- Prefer reusable engineering rules over project-specific logic
-- Include practical examples when useful
-- Maintain consistency with existing skill structure and naming
+- 保持职责聚焦、单一
+- 避免技能之间功能重叠
+- 优先编写可复用的工程规则，而非项目专用逻辑
+- 在有帮助时提供实用示例
+- 与现有技能的结构和命名保持一致
 
-The goal is to build a maintainable, extensible, and professional embedded firmware skill library for AI-assisted development.
+目标是为 AI 辅助开发构建可维护、可扩展且专业的嵌入式固件技能库。

@@ -1,51 +1,49 @@
 ---
 name: embedded-architecture
 description: >
-  Use when creating a new embedded firmware project, adding a module, refactoring firmware,
-  reviewing architecture, or generating project structure. Enforces mandatory architecture rules
-  for maintainable, portable, testable, hardware-independent firmware targeting STM32, GD32, ESP32,
-  RP2040, NXP, Nordic, and similar MCU platforms. Covers project structure, dependency management,
-  module boundaries, platform abstraction, and architecture validation.
+  用于新建嵌入式固件项目、添加模块、重构固件、评审架构或生成项目目录结构。
+  规定面向 STM32、GD32、ESP32、RP2040、NXP、Nordic 等 MCU 平台的架构规则，
+  以构建可维护、可移植、可测试且不依赖具体硬件的固件。
+  涵盖项目结构、依赖管理、模块边界、平台抽象和架构检查。
 ---
 
-# Embedded Architecture
+# 嵌入式软件架构
 
-## Purpose
+## 目的
 
-Define the mandatory architecture rules for embedded firmware projects.
+定义嵌入式固件项目必须遵循的架构规则。
 
-The goal is to generate maintainable, portable, testable, and hardware-independent firmware
-suitable for STM32, GD32, ESP32, RP2040, NXP, Nordic, and similar MCU platforms.
+目标是生成可维护、可移植、可测试且不依赖具体硬件的固件，适用于 STM32、GD32、ESP32、RP2040、NXP、Nordic 等 MCU 平台。
 
-This skill focuses on:
+本技能重点关注：
 
-- project structure
-- dependency management
-- module boundaries
-- platform abstraction
-- code ownership
-- architecture validation
+- 项目结构
+- 依赖管理
+- 模块边界
+- 平台抽象
+- 代码归属
+- 架构检查
 
-## Architecture Principles
+## 架构原则
 
-Generated firmware must follow:
+生成的固件必须遵循：
 
-1. Single responsibility
-2. Low coupling
-3. High cohesion
-4. Explicit interfaces
-5. Hardware abstraction
-6. Platform portability
-7. Testability
-8. Deterministic behavior
+1. 单一职责
+2. 低耦合
+3. 高内聚
+4. 明确的接口
+5. 硬件抽象
+6. 平台可移植性
+7. 可测试性
+8. 确定的执行行为
 
-The application layer must never depend directly on MCU vendor libraries.
+应用层不得直接依赖 MCU 厂商库。
 
-Business logic must remain independent from STM32 HAL, CMSIS, FreeRTOS internals, or peripheral registers.
+业务逻辑必须独立于 STM32 HAL、CMSIS、FreeRTOS 内部实现以及外设寄存器。
 
-## Required Project Structure
+## 必须采用的项目结构
 
-Firmware projects must use the following layout:
+固件项目必须使用以下目录布局：
 
 ```text
 project/
@@ -60,42 +58,42 @@ project/
 └── tests/
 ```
 
-### `app/` — Application Entry Points
+### `app/` — 应用入口
 
-Contains:
+包含：
 
-- state machines
-- application orchestration
-- system startup sequence
-- task creation
+- 状态机
+- 应用流程编排
+- 系统启动顺序
+- 任务创建
 
-Must not contain:
+不得包含：
 
-- register access
-- HAL calls
-- peripheral drivers
+- 寄存器访问
+- HAL 调用
+- 外设驱动
 
-### `module/` — Business Logic
+### `module/` — 业务逻辑
 
-Examples: `motor/`, `imu/`, `control/`, `telemetry/`, `navigation/`, `power/`
+示例：`motor/`、`imu/`、`control/`、`telemetry/`、`navigation/`、`power/`。
 
-Modules may depend only on `interface/`.
+模块只能依赖 `interface/`。
 
-Modules must not access directly: HAL, CMSIS, GPIO registers, UART registers, SPI registers.
+模块不得直接访问 HAL、CMSIS、GPIO 寄存器、UART 寄存器或 SPI 寄存器。
 
-### `interface/` — Hardware Abstraction Contracts
+### `interface/` — 硬件抽象接口契约
 
-Examples: `gpio_if.h`, `uart_if.h`, `spi_if.h`, `pwm_if.h`, `timer_if.h`
+示例：`gpio_if.h`、`uart_if.h`、`spi_if.h`、`pwm_if.h`、`timer_if.h`。
 
-Defines contracts only. Must not contain implementation.
+只定义接口契约，不得包含实现。
 
-### `bsp/` — Board-Specific Implementation
+### `bsp/` — 板级实现
 
-Examples: `led`, `button`, `buzzer`, `oled`, `imu_board`
+示例：`led`、`button`、`buzzer`、`oled`、`imu_board`。
 
-Responsible for mapping interfaces to hardware. May use platform layer.
+负责将接口映射到具体硬件，可以使用平台层。
 
-### `platform/` — Vendor-Specific Code
+### `platform/` — 厂商相关代码
 
 ```text
 platform/
@@ -107,41 +105,41 @@ platform/
     └── linker/
 ```
 
-Contains: CubeMX generated code, HAL drivers, CMSIS, startup files, linker scripts.
+包含 CubeMX 生成的代码、HAL 驱动、CMSIS、启动文件和链接脚本。
 
-Must never contain business logic.
+不得包含业务逻辑。
 
-### `middleware/` — Third-Party Middleware
+### `middleware/` — 第三方中间件
 
-Examples: `freertos/`, `lwip/`, `fatfs/`, `usb/`
+示例：`freertos/`、`lwip/`、`fatfs/`、`usb/`。
 
-Should remain isolated from application logic.
+应与应用逻辑隔离。
 
-## Dependency Rules
+## 依赖规则
 
-Allowed direction (top-down only):
+允许的依赖方向只能自上而下：
 
 ```text
 APP → MODULE → INTERFACE → BSP → PLATFORM
 ```
 
-Forbidden:
+禁止以下依赖：
 
 - `APP → HAL`
 - `APP → STM32_GPIO / STM32_UART`
 - `MODULE → HAL`
-- `MODULE → Register Access`
+- `MODULE → 寄存器访问`
 - `MODULE → CMSIS`
-- `MODULE → FreeRTOS Internal APIs`
+- `MODULE → FreeRTOS 内部 API`
 - `PLATFORM → MODULE`
 - `PLATFORM → APP`
 - `BSP → APP`
 
-Dependencies must always point downward. Circular dependencies are forbidden.
+依赖必须始终向下，禁止循环依赖。
 
-## Platform Isolation Rules
+## 平台隔离规则
 
-All MCU vendor files must reside inside `platform/<target>/`:
+所有 MCU 厂商文件必须放在 `platform/<target>/` 中：
 
 ```text
 platform/stm32f407/
@@ -150,15 +148,15 @@ platform/gd32f450/
 platform/esp32s3/
 ```
 
-Never place generated vendor code directly in project root.
+不得把厂商生成的代码直接放在项目根目录。
 
-Forbidden at repository root: `/Core`, `/Drivers` — move them into the platform directory.
+仓库根目录不得出现 `/Core`、`/Drivers`，应将它们移入平台目录。
 
-## Interface Rules
+## 接口规则
 
-Every hardware service must expose an interface.
+每项硬件服务都必须通过接口对外提供。
 
-Example:
+示例：
 
 ```c
 typedef struct {
@@ -167,52 +165,52 @@ typedef struct {
 } uart_if_t;
 ```
 
-Modules interact only with interfaces. Modules must not know: UART instance, GPIO port, DMA channel, MCU family.
+模块只能通过接口交互，不得感知 UART 实例、GPIO 端口、DMA 通道或 MCU 系列。
 
-## Module Rules
+## 模块规则
 
-Each module should own one responsibility.
+每个模块应只承担一项职责。
 
-Good: `motor`, `imu`, `control`, `telemetry`, `storage`
+推荐：`motor`、`imu`、`control`、`telemetry`、`storage`。
 
-Bad: `system_manager`, `all_in_one`, `utility`, `misc`
+不推荐：`system_manager`、`all_in_one`、`utility`、`misc`。
 
-Avoid god-modules.
+避免把各种职责集中到一个无所不包的模块中。
 
-## RTOS Separation
+## RTOS 职责分离
 
-RTOS task creation belongs to `app/`. Business logic belongs to `module/`.
+RTOS 任务创建属于 `app/`，业务逻辑属于 `module/`。
 
-Bad — task function contains sensor reading, control algorithm, logging, and communication all mixed together.
+错误做法：在同一个任务函数中混合传感器读取、控制算法、日志和通信。
 
-Good — task calls module API, which calls interface, which calls driver:
+正确做法：任务调用模块 API，模块调用接口，接口再调用驱动：
 
 ```text
 TASK → MODULE API → INTERFACE → DRIVER
 ```
 
-## Architecture Validation Checklist
+## 架构检查清单
 
-Before accepting generated code, verify:
+接受生成的代码前，应确认：
 
-- [ ] Project follows required directory layout
-- [ ] No HAL usage in `app/`
-- [ ] No HAL usage in `module/`
-- [ ] No register access outside `platform/`
-- [ ] No CubeMX code outside `platform/`
-- [ ] All peripherals abstracted through interfaces
-- [ ] No circular dependencies
-- [ ] No business logic inside BSP
-- [ ] No business logic inside platform
-- [ ] Modules have single responsibility
-- [ ] Interfaces contain declarations only
-- [ ] Dependency direction is correct
+- [ ] 项目符合规定的目录布局
+- [ ] `app/` 中没有 HAL 调用
+- [ ] `module/` 中没有 HAL 调用
+- [ ] `platform/` 之外没有寄存器访问
+- [ ] `platform/` 之外没有 CubeMX 代码
+- [ ] 所有外设都通过接口抽象
+- [ ] 没有循环依赖
+- [ ] BSP 中没有业务逻辑
+- [ ] 平台层中没有业务逻辑
+- [ ] 模块职责单一
+- [ ] 接口只包含声明
+- [ ] 依赖方向正确
 
-If violations are found:
+发现违反规则的情况时：
 
-1. Report the violation
-2. Explain why it is harmful
-3. Suggest the corrected architecture
-4. Refactor generated code accordingly
+1. 报告具体问题
+2. 解释其危害
+3. 提出修正后的架构
+4. 据此重构生成的代码
 
-Architecture correctness takes precedence over implementation convenience.
+架构正确性优先于实现方便。

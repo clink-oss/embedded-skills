@@ -1,116 +1,110 @@
 ---
 name: embedded-driver-design
 description: >
-  Use when developing or reviewing peripheral drivers for embedded firmware (STM32, GD32,
-  ESP32, FreeRTOS, drone flight controllers, robotics). Enforces layered driver architecture
-  with bus abstraction, device context objects, register encapsulation, and strict separation
-  between bus drivers, device drivers, BSP, and business modules. Prevents HAL/register leakage
-  into device drivers and keeps control algorithms (PID, Kalman, attitude estimation) out of
-  driver code.
+  用于开发或评审 STM32、GD32、ESP32、FreeRTOS、无人机飞控和机器人等嵌入式固件的外设驱动。
+  规定分层驱动架构，包括总线抽象、设备上下文对象、寄存器封装，以及总线驱动、设备驱动、
+  BSP 和业务模块之间的严格职责分离。防止设备驱动直接依赖 HAL 或 MCU 寄存器，
+  并将 PID、卡尔曼滤波、姿态估计等控制算法排除在驱动代码之外。
 ---
 
-# Embedded Driver Design
+# 嵌入式驱动设计
 
-## Purpose
+## 目的
 
-Design and review embedded drivers using a layered architecture.
+使用分层架构设计和评审嵌入式驱动。
 
-The objective is to ensure:
+目标是确保：
 
-- portability across MCU platforms
-- testability via mock bus interfaces
-- maintainability through stable interface contracts
-- hardware abstraction that hides MCU details
-- bus independence — device drivers talk to an interface, not a peripheral
-- platform independence — drivers compile on STM32, GD32, or PC test harness unchanged
+- 可在不同 MCU 平台间移植
+- 可通过模拟总线接口进行测试
+- 通过稳定的接口契约提高可维护性
+- 通过硬件抽象隐藏 MCU 细节
+- 不依赖具体总线：设备驱动面向接口，而非具体外设
+- 不依赖具体平台：无需修改驱动即可在 STM32、GD32 或 PC 测试环境中编译
 
-Drivers must hide hardware details behind stable interfaces. Business logic shall never access
-MCU peripherals directly.
+驱动必须通过稳定接口隐藏硬件细节，业务逻辑不得直接访问 MCU 外设。
 
-## Layer Architecture
+## 分层架构
 
-The complete driver stack:
+完整驱动栈：
 
 ```text
 APP
  ↓
-MODULE  (business logic — estimator, controller, navigation)
+MODULE（业务逻辑：估计器、控制器、导航）
  ↓
-INTERFACE  (contracts only — uart_if.h, spi_if.h)
+INTERFACE（只定义契约：uart_if.h、spi_if.h）
  ↓
-DEVICE DRIVER  (icm42688, w25q64, bmp280)
+DEVICE DRIVER（设备驱动：icm42688、w25q64、bmp280）
  ↓
-BUS DRIVER  (spi, i2c, uart, can)
+BUS DRIVER（总线驱动：spi、i2c、uart、can）
  ↓
-HAL / BSP  (vendor HAL -> platform abstraction)
+HAL / BSP（厂商 HAL → 平台抽象）
  ↓
 STM32 HAL / CMSIS
 ```
 
-The forbidden pattern — IMU driver calling HAL directly:
+禁止的模式：IMU 驱动直接调用 HAL。
 
 ```text
 APP
  ↓
-ICM42688  ← contains HAL_SPI_Transmit()
+ICM42688  ← 内含 HAL_SPI_Transmit()
  ↓
 HAL_SPI_Transmit()
 ```
 
-This couples the device driver to one MCU family and makes porting, testing, and reuse impossible.
+这会将设备驱动与某个 MCU 系列绑定，使其无法移植、测试和复用。
 
-## Driver Classification Rules
+## 驱动分类规则
 
-Before generating driver code, classify the driver into exactly one of these categories.
+生成驱动代码前，必须将其归入以下某一个类别。
 
-### Bus Driver — `driver/bus/`
+### 总线驱动 — `driver/bus/`
 
-Responsible for bus protocol transaction on a specific MCU.
+负责特定 MCU 上的总线协议事务。
 
-Examples: `SPI`, `I2C`, `UART`, `CAN`, `USB`, `ETH`
+示例：`SPI`、`I2C`、`UART`、`CAN`、`USB`、`ETH`。
 
-Directory: `driver/bus/spi/`, `driver/bus/i2c/`
+目录：`driver/bus/spi/`、`driver/bus/i2c/`。
 
-### Device Driver — `driver/device/`
+### 设备驱动 — `driver/device/`
 
-Responsible for a specific peripheral chip.
+负责某个具体外设芯片。
 
-Examples: `ICM42688`, `MPU6050`, `W25Q64`, `BMP280`, `SX1278`
+示例：`ICM42688`、`MPU6050`、`W25Q64`、`BMP280`、`SX1278`。
 
-Directory: `driver/device/icm42688/`
+目录：`driver/device/icm42688/`。
 
-### BSP Driver — `bsp/`
+### BSP 驱动 — `bsp/`
 
-Board-level resources that map to specific hardware.
+负责映射到具体硬件的板级资源。
 
-Examples: `LED`, `Button`, `Buzzer`, `OLED`
+示例：`LED`、`Button`、`Buzzer`、`OLED`。
 
-Directory: `bsp/` (not `driver/`)
+目录：`bsp/`，不放在 `driver/`。
 
-Many AI tools incorrectly place board-level items like LED or Button into `driver/`. BSP items
-belong under `bsp/`, not `driver/`.
+许多 AI 工具会错误地将 LED、按键等板级组件放入 `driver/`。这些 BSP 组件应放在 `bsp/` 中。
 
-### Driver Layer Responsibility Boundaries
+### 驱动层职责边界
 
-Device drivers must **never** contain:
+设备驱动中**不得**包含：
 
-- PID controller logic
-- Kalman filter implementation
-- Attitude estimation algorithms
-- Navigation algorithms
-- Application state machines
+- PID 控制器逻辑
+- 卡尔曼滤波实现
+- 姿态估计算法
+- 导航算法
+- 应用状态机
 
-Mixing driver code with control algorithms is a common architecture error in AI-generated
-flight controller and robotics firmware. The IMU driver reads and converts sensor data.
-The attitude estimator processes that data. Keep these in separate layers:
+在 AI 生成的飞控和机器人固件中，驱动代码与控制算法混杂是常见架构错误。IMU 驱动负责读取和转换传感器数据，姿态估计器负责处理这些数据，两者必须分层：
 
 ```text
-driver/device/imu/          ← register reads, data conversion only
-module/estimator/           ← Kalman, attitude fusion
-module/controller/          ← PID, control law
+driver/device/imu/          ← 只负责寄存器读取和数据转换
+module/estimator/           ← 卡尔曼滤波、姿态融合
+module/controller/          ← PID、控制律
 ```
 
-## Required Directory Structure
+## 必须采用的目录结构
 
 ```text
 driver/
@@ -134,12 +128,11 @@ driver/
     └── types.h
 ```
 
-## Bus Abstraction Rules
+## 总线抽象规则
 
-**Every bus must expose an abstract interface.** Device drivers depend on these interfaces
-only — never on vendor HAL types.
+**每种总线都必须提供抽象接口。** 设备驱动只能依赖这些接口，不得依赖厂商 HAL 类型。
 
-SPI bus interface:
+SPI 总线接口：
 
 ```c
 typedef struct {
@@ -149,7 +142,7 @@ typedef struct {
 } spi_if_t;
 ```
 
-I2C bus interface:
+I2C 总线接口：
 
 ```c
 typedef struct {
@@ -160,35 +153,34 @@ typedef struct {
 } i2c_if_t;
 ```
 
-A device driver may only access the bus through `spi_if_t` or `i2c_if_t`, never through
-`SPI_HandleTypeDef` or `HAL_SPI_Transmit()` directly.
+设备驱动只能通过 `spi_if_t` 或 `i2c_if_t` 访问总线，不得直接使用 `SPI_HandleTypeDef` 或 `HAL_SPI_Transmit()`。
 
-Forbidden in any device driver:
-
-```c
-SPI_HandleTypeDef hspi1;       // forbidden — MCU-specific type
-HAL_SPI_Transmit(&hspi1, ...); // forbidden — vendor HAL API
-```
-
-Required — always go through the bus interface:
+任何设备驱动中都禁止：
 
 ```c
-spi->transfer(tx, rx, len);    // correct
+SPI_HandleTypeDef hspi1;       // 禁止：MCU 专用类型
+HAL_SPI_Transmit(&hspi1, ...); // 禁止：厂商 HAL API
 ```
 
-## Device Context Rules
+必须通过总线接口：
 
-Driver state must live in a device context struct, not in global variables.
+```c
+spi->transfer(tx, rx, len);    // 正确
+```
 
-Forbidden — global device state:
+## 设备上下文规则
+
+驱动状态必须保存在设备上下文结构体中，不得使用全局变量。
+
+禁止使用全局设备状态：
 
 ```c
 static float gyro_x;
 static float gyro_y;
-static uint8_t initialized;  // forbidden
+static uint8_t initialized;  // 禁止
 ```
 
-Required — device context:
+应使用设备上下文：
 
 ```c
 typedef struct {
@@ -200,40 +192,39 @@ typedef struct {
 } icm42688_t;
 ```
 
-All state belongs to the device object. This enables multiple instances of the same device
-on different bus channels.
+所有状态均属于设备对象，从而支持在不同总线通道上使用同类设备的多个实例。
 
-## Initialization Rules
+## 初始化规则
 
-Unified init interface — all device drivers must follow this signature:
+统一初始化接口，所有设备驱动必须遵循以下签名：
 
 ```c
 error_t xxx_init(xxx_t *dev);
 ```
 
-Example:
+示例：
 
 ```c
 error_t icm42688_init(icm42688_t *imu);
 ```
 
-Forbidden:
+禁止：
 
 ```c
-void imu_init(void);  // hidden global state — cannot determine which instance
+void imu_init(void);  // 隐藏了全局状态，无法确定初始化哪个实例
 ```
 
-## Register Encapsulation Rules
+## 寄存器封装规则
 
-Register addresses and bit-field definitions must be centralized in a `_reg.h` header.
+寄存器地址和位域定义必须集中放在 `_reg.h` 头文件中。
 
-Forbidden — magic register addresses scattered in driver code:
+禁止在驱动中散布没有明确含义的寄存器地址：
 
 ```c
-spi_write(0x1A, 0x80);   // what is 0x1A? what is 0x80?
+spi_write(0x1A, 0x80);   // 0x1A 和 0x80 分别代表什么？
 ```
 
-Required — named register constants:
+应使用具名寄存器常量：
 
 ```c
 // icm42688_reg.h
@@ -244,58 +235,56 @@ Required — named register constants:
 ret = icm42688_write_reg(imu, ICM42688_REG_PWR_MGMT0, ICM42688_BIT_TEMP_EN);
 ```
 
-## Synchronization and DMA Rules
+## 同步与 DMA 规则
 
-Device drivers must not be aware of DMA streams, DMA channels, or IRQ numbers. These belong
-to the bus driver layer.
+设备驱动不应感知 DMA 数据流、DMA 通道或 IRQ 编号，这些属于总线驱动层。
 
-The bus interface exposes both synchronous and asynchronous transfer functions:
-
-```c
-spi->transfer(tx, rx, len);           // synchronous — blocks until done
-spi->transfer_async(tx, rx, len, cb); // asynchronous — callback on completion
-```
-
-The device driver chooses the mode but does not configure DMA hardware directly.
-
-Forbidden in device drivers:
+总线接口同时提供同步和异步传输函数：
 
 ```c
-DMA_HandleTypeDef hdma_spi1_tx;  // forbidden — DMA is a bus-layer concern
-__HAL_DMA_ENABLE(...);           // forbidden
+spi->transfer(tx, rx, len);           // 同步：阻塞至传输完成
+spi->transfer_async(tx, rx, len, cb); // 异步：完成后回调
 ```
 
-## RTOS Isolation Rules
+设备驱动可以选择传输模式，但不得直接配置 DMA 硬件。
 
-Device drivers must be RTOS-agnostic. They must not call:
+设备驱动中禁止：
 
 ```c
-osDelay();          // forbidden — introduces RTOS dependency
-vTaskDelay();       // forbidden
-osMutexAcquire();   // forbidden
+DMA_HandleTypeDef hdma_spi1_tx;  // 禁止：DMA 属于总线层职责
+__HAL_DMA_ENABLE(...);           // 禁止
 ```
 
-Device drivers must not busy-wait:
+## RTOS 隔离规则
+
+设备驱动必须独立于 RTOS，不得调用：
 
 ```c
-while (!(reg & BIT_READY));  // forbidden — spin-wait blocks the entire system
+osDelay();          // 禁止：引入 RTOS 依赖
+vTaskDelay();       // 禁止
+osMutexAcquire();   // 禁止
 ```
 
-Instead, device drivers should support timeout, callback, or event mechanisms:
+设备驱动不得忙等：
+
+```c
+while (!(reg & BIT_READY));  // 禁止：自旋等待会阻塞整个系统
+```
+
+应支持超时、回调或事件机制：
 
 ```c
 ret = spi->transfer(tx, rx, len);
 if (ret == ERR_TIMEOUT) {
-    // handle timeout — caller decides retry or recovery
+    // 处理超时，由调用者决定重试或恢复
 }
 ```
 
-RTOS concerns (blocking, yielding, mutex protection) are handled by the layer *above* the
-device driver — the module or app layer coordinates access if multiple tasks share a device.
+阻塞、让出 CPU 和互斥保护等 RTOS 事务由设备驱动的**上层**处理。多个任务共享设备时，由模块层或应用层协调访问。
 
-## Error Handling Rules
+## 错误处理规则
 
-All drivers must use a unified error code type:
+所有驱动必须使用统一的错误码类型：
 
 ```c
 typedef enum {
@@ -308,61 +297,60 @@ typedef enum {
 } error_t;
 ```
 
-Forbidden:
+禁止：
 
 ```c
-return -1;  // meaningless — what failed?
+return -1;  // 没有明确含义，无法判断失败原因
 return -2;
 return -3;
 ```
 
-## Mock Testing Rules
+## 模拟测试规则
 
-Every bus interface must be mockable. The bus abstraction (`spi_if_t`, `i2c_if_t`) design
-enables this naturally — the same interface can point to real hardware or a test stub:
+每个总线接口都必须支持模拟实现。总线抽象（`spi_if_t`、`i2c_if_t`）天然支持这一点：同一接口既可指向真实硬件，也可指向测试桩。
 
 ```c
-// real hardware
+// 真实硬件
 spi_if_t spi = { .transfer = stm32_spi_transfer };
 
-// test mock
+// 测试模拟实现
 spi_if_t mock_spi = { .transfer = mock_spi_transfer };
 ```
 
-This allows device drivers to be tested on a PC without any MCU hardware:
+这样无需 MCU 硬件也能在 PC 上测试设备驱动：
 
-- compile for host (x86/ARM64)
-- inject `mock_spi` that returns known patterns
-- verify register sequences and data conversion logic
+- 面向主机平台（x86/ARM64）编译
+- 注入返回已知数据的 `mock_spi`
+- 验证寄存器操作顺序和数据转换逻辑
 
-## Validation Checklist
+## 检查清单
 
-After generating driver code, verify:
+生成驱动代码后，应确认：
 
-- [ ] Device driver contains no HAL API calls
-- [ ] Device driver contains no MCU-specific types
-- [ ] Device driver depends on bus interface, not MCU bus peripheral
-- [ ] No magic register addresses — all in `_reg.h`
-- [ ] Register bit definitions are named constants
-- [ ] Device state is in a context struct, not globals
-- [ ] No global `static` device state
-- [ ] Init interface follows `error_t xxx_init(xxx_t *dev)` pattern
-- [ ] Error codes are typed (`error_t`), not magic `-1`/`-2`
-- [ ] No DMA configuration inside device driver
-- [ ] No IRQ numbers inside device driver
-- [ ] No RTOS calls (`osDelay`, `vTaskDelay`, mutex) in driver code
-- [ ] No busy-wait loops
-- [ ] Bus interface supports mock injection for testing
-- [ ] Driver contains no PID, Kalman, or control algorithm logic
+- [ ] 设备驱动没有 HAL API 调用
+- [ ] 设备驱动没有 MCU 专用类型
+- [ ] 设备驱动依赖总线接口，而非 MCU 总线外设
+- [ ] 没有散布的魔法寄存器地址，均集中在 `_reg.h`
+- [ ] 寄存器位定义采用具名常量
+- [ ] 设备状态位于上下文结构体中，而非全局变量
+- [ ] 没有文件作用域的 `static` 设备状态
+- [ ] 初始化接口符合 `error_t xxx_init(xxx_t *dev)` 模式
+- [ ] 错误码使用 `error_t` 类型，而非含义不明的 `-1`/`-2`
+- [ ] 设备驱动中没有 DMA 配置
+- [ ] 设备驱动中没有 IRQ 编号
+- [ ] 驱动代码中没有 `osDelay`、`vTaskDelay` 或互斥锁等 RTOS 调用
+- [ ] 没有忙等循环
+- [ ] 总线接口支持注入模拟实现进行测试
+- [ ] 驱动中没有 PID、卡尔曼滤波或控制算法逻辑
 
-## Auto Fix Strategy
+## 自动修正策略
 
-When violations are found:
+发现违反规则的情况时：
 
-1. **Identify** HAL or register leakage into the device driver
-2. **Extract** the bus operations into a `spi_if_t` / `i2c_if_t` interface
-3. **Move** register constants into a dedicated `_reg.h` header
-4. **Encapsulate** global device state into a context struct
-5. **Replace** magic error codes with `error_t` enum values
-6. **Remove** DMA/IRQ/RTOS dependencies from the device layer
-7. **Separate** control algorithms into `module/` — drivers read data, modules process it
+1. **识别**设备驱动中直接依赖 HAL 或寄存器的部分
+2. 将总线操作**提取**为 `spi_if_t` / `i2c_if_t` 接口
+3. 将寄存器常量**移入**独立的 `_reg.h` 头文件
+4. 将全局设备状态**封装**为上下文结构体
+5. 将含义不明的错误码**替换**为 `error_t` 枚举值
+6. 从设备层**移除** DMA、IRQ 和 RTOS 依赖
+7. 将控制算法**分离**到 `module/`：驱动读取数据，模块处理数据

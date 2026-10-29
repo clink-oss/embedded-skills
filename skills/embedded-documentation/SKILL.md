@@ -1,49 +1,43 @@
 ---
 name: embedded-documentation
 description: >
-  Use when creating or reviewing embedded firmware projects (STM32, FreeRTOS, drone, robotics) to
-  ensure complete, consistent, and maintainable documentation. Automatically generates and validates
-  project documentation: README, architecture docs, module design docs, interface specs, RTOS task
-  design, ISR documentation, state machines, hardware pin mapping, and data flow diagrams.
-  Triggers on new projects, new modules, new RTOS tasks/ISRs, state machine detection, or any
-  undocumented component.
+  用于创建或评审 STM32、FreeRTOS、无人机、机器人等嵌入式固件项目，
+  确保文档完整、一致且便于维护。自动生成并检查 README、架构文档、模块设计、接口规范、
+  RTOS 任务设计、ISR 文档、状态机、硬件引脚映射和数据流图。
+  在新建项目、模块、RTOS 任务或 ISR，发现状态机或未编写文档的组件时使用。
 ---
 
-# Embedded Documentation
+# 嵌入式固件文档
 
-## Purpose
+## 目的
 
-This skill defines documentation standards for embedded firmware projects. The goal is to ensure
-every generated project is accompanied by documentation sufficient for another engineer to
-understand, build, modify, and maintain the system.
+本技能定义嵌入式固件项目的文档规范，确保生成的每个项目都具有足够的说明，使其他工程师能够理解、构建、修改和维护系统。
 
-Goals:
+目标：
 
-- maintainability
-- traceability
-- onboarding efficiency
-- architecture visibility
-- design consistency
+- 可维护性
+- 可追溯性
+- 新成员上手效率
+- 架构清晰可见
+- 设计一致性
 
-The most valuable embedded documentation is not Doxygen API comments — it is architecture overviews,
-RTOS task design, and hardware resource mapping that let a new engineer understand the whole
-system in minutes.
+最有价值的嵌入式文档并非 Doxygen API 注释，而是能让新工程师在几分钟内了解整个系统的架构概览、RTOS 任务设计和硬件资源映射。
 
-Documentation must evolve together with code. Never leave public modules undocumented.
+文档必须随代码同步更新，公开模块不得缺少文档。
 
-## Documentation Level Overview
+## 文档层级概览
 
-| Level | Content | When Generated |
-|-------|---------|----------------|
-| L1 — Project | README, Architecture, Build, Hardware, Directory Structure | New project |
-| L2 — Module | Per-module design docs | New module created |
-| L3 — Interface | Interface contract docs | New interface created |
-| L4 — RTOS/ISR | TaskDesign, ISRDesign, EventFlow | `osThreadNew` or `IRQHandler` detected |
-| L5 — Control | ControlLoop, StateMachine, Estimator | State machine enum or control structures detected |
+| 层级 | 内容 | 生成时机 |
+|------|------|----------|
+| L1 — 项目 | README、架构、构建、硬件、目录结构 | 新建项目时 |
+| L2 — 模块 | 各模块的设计文档 | 新建模块时 |
+| L3 — 接口 | 接口契约文档 | 新建接口时 |
+| L4 — RTOS/ISR | TaskDesign、ISRDesign、EventFlow | 检测到 `osThreadNew` 或 `IRQHandler` 时 |
+| L5 — 控制 | ControlLoop、StateMachine、Estimator | 检测到状态机枚举或控制结构时 |
 
-## Project-Level Documentation (L1)
+## 项目级文档（L1）
 
-When creating a new embedded project, generate:
+创建嵌入式项目时，生成：
 
 ```text
 README.md
@@ -55,49 +49,49 @@ docs/
 └── DirectoryStructure.md
 ```
 
-### README Requirements
+### README 要求
 
-Every project README must contain:
+每个项目的 README 必须包含：
 
 ```markdown
-# Project Overview
+# 项目概览
 
-What this firmware does and which hardware it targets.
+说明固件的功能及目标硬件。
 
-# Features
+# 功能特性
 
-Key capabilities and supported peripherals.
+主要能力和支持的外设。
 
-# Hardware Platform
+# 硬件平台
 
-MCU family, board revision, key pin assignments.
+MCU 系列、开发板版本、关键引脚分配。
 
-# Build Instructions
+# 构建说明
 
-Toolchain, build commands, optional features.
+工具链、构建命令和可选功能。
 
-# Flash Instructions
+# 烧录说明
 
-Debugger, probe, or bootloader method.
+调试器、调试探针或引导程序的使用方式。
 
-# Project Structure
+# 项目结构
 
-Overview of the directory layout.
+目录布局概览。
 
-# Software Architecture
+# 软件架构
 
-Layer diagram and dependency direction.
+分层图及依赖方向。
 
-# Dependencies
+# 依赖项
 
-Middleware, SDKs, toolchains required.
+需要的中间件、SDK 和工具链。
 
-# License
+# 许可证
 ```
 
-### Architecture Documentation
+### 架构文档
 
-Must describe the layer model — a ASCII dependency diagram:
+必须使用 ASCII 依赖图说明分层模型：
 
 ```text
 app/
@@ -111,156 +105,155 @@ bsp/
 platform/
 ```
 
-Explain the role of each layer and the dependency direction constraint.
+解释每层的作用以及依赖方向的限制。
 
-### Directory Structure Documentation
+### 目录结构文档
 
-Auto-generate from the actual project tree:
+根据实际项目目录自动生成：
 
 ```text
 project/
-├── app/              — Application entry, tasks, state machines
-├── module/           — Business logic modules
-├── interface/        — Hardware abstraction contracts
-├── bsp/              — Board-specific driver implementations
-├── platform/         — Vendor SDK, HAL, CMSIS, linker scripts
-├── middleware/       — Third-party (FreeRTOS, lwIP, FatFS)
-├── docs/             — Documentation
-├── tools/            — Build and debug scripts
-└── tests/            — Unit and integration tests
+├── app/              — 应用入口、任务、状态机
+├── module/           — 业务逻辑模块
+├── interface/        — 硬件抽象接口契约
+├── bsp/              — 板级驱动实现
+├── platform/         — 厂商 SDK、HAL、CMSIS、链接脚本
+├── middleware/       — 第三方组件（FreeRTOS、lwIP、FatFS）
+├── docs/             — 文档
+├── tools/            — 构建和调试脚本
+└── tests/            — 单元测试和集成测试
 ```
 
-### Hardware Documentation
+### 硬件文档
 
-When the project references GPIO, UART, SPI, I2C, CAN, PWM, or ADC, generate `docs/Hardware.md`
-with a resource table:
+项目涉及 GPIO、UART、SPI、I2C、CAN、PWM 或 ADC 时，生成 `docs/Hardware.md`，并包含资源表：
 
 ```markdown
-| Peripheral | Interface | Target       | Purpose          |
-|------------|-----------|--------------|------------------|
-| USART1     | uart_if   | Telemetry    | 115200 baud      |
-| SPI1       | spi_if    | ICM-42688    | IMU data @ 1MHz  |
-| TIM3       | pwm_if    | Motor driver | 50Hz PWM         |
-| ADC1       |           | Battery      | Voltage monitor  |
-| PB0        | gpio_if   | LED          | Status indicator |
+| 外设 | 接口 | 连接对象 | 用途 |
+|------|------|----------|------|
+| USART1 | uart_if | 遥测设备 | 115200 波特率 |
+| SPI1 | spi_if | ICM-42688 | IMU 数据，1 MHz |
+| TIM3 | pwm_if | 电机驱动器 | 50 Hz PWM |
+| ADC1 | | 电池 | 电压监测 |
+| PB0 | gpio_if | LED | 状态指示 |
 ```
 
-## Module-Level Documentation (L2)
+## 模块级文档（L2）
 
-When a new module is created (e.g., `module/motor/`), generate `docs/modules/motor.md`:
+创建新模块（如 `module/motor/`）时，生成 `docs/modules/motor.md`：
 
 ```markdown
-# Motor Module
+# 电机模块
 
-## Purpose
+## 目的
 
-Control motor output — converts speed commands into PWM signals and monitors fault status.
+控制电机输出：将转速指令转换为 PWM 信号，并监测故障状态。
 
-## Responsibilities
+## 职责
 
-- speed control loop execution
-- PWM generation via pwm_if
-- fault detection and safe stop
-- current limiting
+- 执行转速控制环
+- 通过 pwm_if 生成 PWM
+- 检测故障并安全停机
+- 限制电流
 
-## Public API
+## 公开 API
 
 error_t motor_init(void)
 error_t motor_set_speed(int32_t rpm)
 void    motor_stop(void)
 bool    motor_is_faulted(void)
 
-## Dependencies
+## 依赖项
 
 - pwm_if
 - timer_if
 - gpio_if
 
-## Data Flow
+## 数据流
 
 control_module → motor_module → pwm_if → platform_pwm
 
-## State Machine
+## 状态机
 
 STOPPED → STARTING → RUNNING → FAULT → STOPPED
 ```
 
-## Interface Documentation (L3)
+## 接口文档（L3）
 
-Every interface in `interface/` must document:
+`interface/` 中的每个接口必须说明：
 
 ```markdown
-# UART Interface
+# UART 接口
 
-## Purpose
+## 目的
 
-Provide hardware-independent UART access for modules.
+为模块提供不依赖具体硬件的 UART 访问能力。
 
-## Public API
+## 公开 API
 
 int32_t uart_init(uart_config_t *cfg)
 int32_t uart_write(const uint8_t *data, uint32_t len)
 int32_t uart_read(uint8_t *data, uint32_t len)
 
-## Ownership
+## 实现方与使用方
 
-Implemented by BSP layer. Consumed by module/ layer.
+由 BSP 层实现，供 module/ 层使用。
 
-## Thread Safety
+## 线程安全
 
-Not thread-safe. Caller must protect with mutex or critical section.
+不保证线程安全，调用者必须使用互斥锁或临界区保护。
 ```
 
-## RTOS Task Documentation (L4)
+## RTOS 任务文档（L4）
 
-When the code contains `osThreadNew()` or `xTaskCreate()`, generate `docs/TaskDesign.md`:
+代码包含 `osThreadNew()` 或 `xTaskCreate()` 时，生成 `docs/TaskDesign.md`：
 
 ```markdown
-# Task Design
+# 任务设计
 
-| Task            | Period | Priority | Stack  | Responsibility          |
-|-----------------|--------|----------|--------|-------------------------|
-| imu_task        | 1 ms   | High     | 512    | Sensor acquisition      |
-| control_task    | 1 ms   | High     | 1024   | PID control loop        |
-| telemetry_task  | 20 ms  | Low      | 256    | UART telemetry output   |
-| usb_cdc_task    | event  | Medium   | 512    | USB serial handling     |
+| 任务 | 周期 | 优先级 | 栈大小 | 职责 |
+|------|------|--------|--------|------|
+| imu_task | 1 ms | 高 | 512 | 传感器采集 |
+| control_task | 1 ms | 高 | 1024 | PID 控制环 |
+| telemetry_task | 20 ms | 低 | 256 | UART 遥测输出 |
+| usb_cdc_task | 事件触发 | 中 | 512 | USB 串口处理 |
 ```
 
-Also document synchronization primitives:
+同时记录同步机制：
 
 ```markdown
-### Synchronization
+### 同步机制
 
-| Resource         | Type         | Purpose                  |
-|------------------|--------------|--------------------------|
-| imu_data_queue   | MessageQueue | IMU → Control            |
-| control_mutex    | Mutex        | Shared setpoint access   |
-| telemetry_event  | EventFlags   | Telemetry trigger        |
+| 资源 | 类型 | 用途 |
+|------|------|------|
+| imu_data_queue | 消息队列 | IMU → 控制任务 |
+| control_mutex | 互斥锁 | 共享设定值访问 |
+| telemetry_event | 事件标志 | 触发遥测 |
 ```
 
-## ISR Documentation (L4)
+## ISR 文档（L4）
 
-When the code contains `IRQHandler` functions, generate `docs/ISRDesign.md`:
+代码包含 `IRQHandler` 函数时，生成 `docs/ISRDesign.md`：
 
 ```markdown
-# ISR Design
+# ISR 设计
 
-| Interrupt      | Source   | Priority | Execution Time | Shared Variables        |
-|----------------|----------|----------|----------------|-------------------------|
-| USART1_IRQn    | RX       | 5        | < 5 µs         | rx_buffer, rx_index     |
-| TIM3_IRQn      | Update   | 4        | < 2 µs         | pwm_duty                |
+| 中断 | 来源 | 优先级 | 执行时间 | 共享变量 |
+|------|------|--------|----------|----------|
+| USART1_IRQn | 接收 | 5 | < 5 µs | rx_buffer、rx_index |
+| TIM3_IRQn | 更新事件 | 4 | < 2 µs | pwm_duty |
 
-### Deferred Processing
+### 延后处理
 
-| ISR            | Deferred Mechanism     | Consumer      |
-|----------------|------------------------|---------------|
-| USART1_IRQn    | osMessageQueuePut      | usb_cdc_task  |
-| TIM3_IRQn      | Direct (in-isr update) | —             |
+| ISR | 延后处理机制 | 处理任务 |
+|-----|--------------|----------|
+| USART1_IRQn | osMessageQueuePut | usb_cdc_task |
+| TIM3_IRQn | 直接在 ISR 中更新 | — |
 ```
 
-## State Machine Documentation (L5)
+## 状态机文档（L5）
 
-When the code contains a state enum or `switch(state)`, generate `docs/StateMachine.md`:
+代码包含状态枚举或 `switch(state)` 时，生成 `docs/StateMachine.md`：
 
 ```text
 INIT
@@ -272,23 +265,22 @@ RUNNING
 FAULT → IDLE
 ```
 
-Include transition conditions:
+应包含状态转换条件：
 
 ```markdown
-| Transition | From     | To       | Condition               |
-|------------|----------|----------|-------------------------|
-| start      | IDLE     | RUNNING  | system_ready == true    |
-| fault      | RUNNING  | FAULT    | motor_fault_detected    |
-| reset      | FAULT    | IDLE     | fault_ack received      |
-| error      | INIT     | IDLE     | init complete           |
+| 转换 | 起始状态 | 目标状态 | 条件 |
+|------|----------|----------|------|
+| start | IDLE | RUNNING | system_ready == true |
+| fault | RUNNING | FAULT | motor_fault_detected |
+| reset | FAULT | IDLE | 收到 fault_ack |
+| error | INIT | IDLE | 初始化完成 |
 ```
 
-## Diagram Generation Rules
+## 图示生成规则
 
-When producing documentation, prefer ASCII diagrams for architecture and data flow so they
-render inline in any Markdown viewer without external tools.
+编写文档时，架构图和数据流图优先采用 ASCII 图示，以便任何 Markdown 阅读器都能直接显示，无需外部工具。
 
-### Architecture Diagram
+### 架构图
 
 ```text
 app/
@@ -302,49 +294,49 @@ bsp/
 platform/
 ```
 
-### Data Flow Diagram
+### 数据流图
 
 ```text
 imu_sensor
-    ↓ (SPI)
+    ↓（SPI）
 imu_module
-    ↓ (queue)
+    ↓（队列）
 estimator
-    ↓ (shared data)
+    ↓（共享数据）
 controller
-    ↓ (pwm_if)
+    ↓（pwm_if）
 motor_driver
 ```
 
-### Task Interaction Diagram
+### 任务交互图
 
 ```text
-imu_task ──queue──→ control_task ──queue──→ telemetry_task
+imu_task ──队列──→ control_task ──队列──→ telemetry_task
 ```
 
-## Documentation Validation Checklist
+## 文档检查清单
 
-After generating code, verify:
+生成代码后，应确认：
 
-- [ ] README exists and covers all required sections
-- [ ] Architecture document describes layer model
-- [ ] Build instructions are documented
-- [ ] Hardware resources are documented with peripheral table
-- [ ] New modules each have a design doc
-- [ ] All interfaces document purpose, API, ownership, and thread safety
-- [ ] RTOS tasks documented with period/priority/stack/responsibility
-- [ ] ISRs documented with source, latency, shared variables, deferred processing
-- [ ] State machines documented with transitions and conditions
-- [ ] Dependency graph and data flow documented
-- [ ] Directory structure documented
+- [ ] README 存在，且包含所有必需章节
+- [ ] 架构文档描述了分层模型
+- [ ] 已说明构建方法
+- [ ] 硬件资源已通过外设表记录
+- [ ] 每个新模块都有设计文档
+- [ ] 所有接口都说明了用途、API、实现方与使用方、线程安全性
+- [ ] RTOS 任务已记录周期、优先级、栈大小和职责
+- [ ] ISR 已记录中断来源、延迟、共享变量和延后处理方式
+- [ ] 状态机已记录状态转换及条件
+- [ ] 已记录依赖图和数据流
+- [ ] 已说明目录结构
 
-## Auto Fix Strategy
+## 自动修正策略
 
-When documentation is missing:
+缺少文档时：
 
-1. **Detect** the undocumented component (module, interface, task, ISR, hardware)
-2. **Generate** the required document following the templates above
-3. **Link** the new document from the README table of contents
-4. **Update** architecture references to maintain document graph coherence
+1. **识别**未编写文档的组件，包括模块、接口、任务、ISR 和硬件
+2. 按上述模板**生成**所需文档
+3. 在 README 目录中添加新文档的**链接**
+4. **更新**架构文档中的引用，保持文档之间的关联一致
 
-Documentation should evolve together with code. Never leave public modules undocumented.
+文档应随代码同步更新，公开模块不得缺少文档。

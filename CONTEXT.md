@@ -1,8 +1,8 @@
-# Project Context
+# 项目背景
 
-This repository contains a reusable embedded firmware engineering framework for AI-assisted development.
+本仓库提供面向 AI 辅助开发的、可复用的嵌入式固件工程框架。
 
-The framework targets resource-constrained MCU systems including:
+框架面向资源受限的 MCU 系统，包括：
 
 - STM32
 - GD32
@@ -11,82 +11,80 @@ The framework targets resource-constrained MCU systems including:
 - NXP LPC
 - Nordic nRF
 
-The objective is to generate **production-grade firmware architecture** rather than demonstration code.
+目标是生成**生产级固件架构**，而非演示代码。
 
-Generated code should prioritize:
+相比快速原型开发，生成代码应优先考虑：
 
-- maintainability
-- portability
-- testability
-- determinism
-- real-time behavior
+- 可维护性
+- 可移植性
+- 可测试性
+- 确定性
+- 实时性
 
-over rapid prototyping.
+## 目标读者
 
-## Intended Audience
+主要面向：
 
-Target users include:
+- 嵌入式固件工程师
+- 机器人开发人员
+- 飞控工程师
+- 工业自动化开发人员
+- RTOS 应用开发人员
 
-- embedded firmware engineers
-- robotics developers
-- flight-control engineers
-- industrial automation developers
-- RTOS application developers
+假定读者具有基本的 C 语言知识和 MCU 开发经验。
 
-Assume readers have basic C knowledge and MCU experience.
+## 首选技术栈
 
-## Preferred Technology Stack
+**编程语言：** C99
 
-**Programming Language:** C99
+**RTOS：** FreeRTOS、CMSIS-RTOS2
 
-**RTOS:** FreeRTOS, CMSIS-RTOS2
+**构建系统：** CMake、Make
 
-**Build Systems:** CMake, Make
+**MCU 平台：** STM32、GD32、ESP32
 
-**MCU Platforms:** STM32, GD32, ESP32
+**工具链：** arm-none-eabi-gcc、clang
 
-**Toolchains:** arm-none-eabi-gcc, clang
+**IDE：** VSCode、CLion
 
-**IDE:** VSCode, CLion
+## 架构理念
 
-## Architecture Philosophy
-
-The preferred architecture is:
+首选架构：
 
 ```text
 APP → MODULE → INTERFACE → BSP → PLATFORM
 ```
 
-Business logic must remain independent from STM32 HAL, MCU registers, and RTOS internals. Hardware access should be abstracted through stable interface contracts. Dependencies always point downward; circular dependencies are forbidden.
+业务逻辑必须独立于 STM32 HAL、MCU 寄存器和 RTOS 内部实现。硬件访问应通过稳定的接口契约进行抽象。依赖始终向下，禁止循环依赖。
 
-## Real-Time Design Philosophy
+## 实时设计理念
 
-The firmware is expected to run in real-time environments. Priorities:
+固件应能在实时环境中运行，优先考虑：
 
-1. Deterministic execution
-2. Low latency
-3. Predictable scheduling
-4. ISR minimization
-5. Event-driven design
+1. 确定的执行过程
+2. 低延迟
+3. 可预测的调度
+4. 尽量精简 ISR
+5. 事件驱动设计
 
-Control loops must run independently from communication timing.
+控制环必须独立于通信时序运行。
 
-## Driver Philosophy
+## 驱动理念
 
-Drivers should be reusable, hardware-independent, mockable, and testable. Device drivers depend on bus interfaces rather than MCU HAL APIs. Business logic must not access drivers directly.
+驱动应可复用、不依赖具体硬件、可模拟且可测试。设备驱动依赖总线接口，而非 MCU HAL API。业务逻辑不得直接访问驱动。
 
-## Documentation Philosophy
+## 文档理念
 
-Documentation is considered part of the deliverable. Generated modules should include purpose, responsibilities, dependencies, and public APIs. Major architecture decisions should be documented.
+文档属于交付内容的一部分。生成的模块应说明用途、职责、依赖和公开 API，重要架构决策应有记录。
 
-## Agent Expectations
+## 对智能体的要求
 
-When generating firmware:
+生成固件时：
 
-- prefer clarity over cleverness
-- prefer maintainability over brevity
-- prefer explicit interfaces over hidden coupling
-- avoid shortcuts that violate architecture rules
-- explain architectural decisions when introducing new modules
+- 清晰优先于技巧
+- 可维护性优先于简短
+- 明确的接口优先于隐式耦合
+- 不采取违反架构规则的捷径
+- 引入新模块时解释架构决策
 
-Do not generate code that bypasses defined abstractions merely for convenience.
+不得仅为方便而生成绕过既定抽象层的代码。

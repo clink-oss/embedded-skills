@@ -1,39 +1,37 @@
 ---
 name: embedded-cstyle
 description: >
-  Use when generating, modifying, reviewing, or refactoring C code for embedded firmware projects
-  (STM32, GD32, ESP32, FreeRTOS, bare-metal, driver development, robotics). Enforces engineering
-  coding standards — naming, types, functions, variables, macros, headers, memory, concurrency,
-  error handling, and documentation. Catches AI-common mistakes: global variables, magic numbers,
-  missing static/const, volatile abuse, ignored return values, unchecked null pointers, and HAL
-  calls leaking into business logic.
+  用于生成、修改、评审或重构嵌入式固件项目的 C 代码，适用于 STM32、GD32、ESP32、
+  FreeRTOS、裸机、驱动开发和机器人等场景。规定命名、类型、函数、变量、宏、头文件、
+  内存、并发、错误处理和文档方面的工程规范。检查 AI 常见错误，包括全局变量、魔法数字、
+  缺少 static/const、滥用 volatile、忽略返回值、未检查空指针，以及业务逻辑直接调用 HAL。
 ---
 
-# Embedded C Style
+# 嵌入式 C 编码规范
 
-## Purpose
+## 目的
 
-This skill defines mandatory coding standards for embedded firmware projects.
+本技能定义嵌入式固件项目必须遵循的编码规范。
 
-Goals:
+目标：
 
-- readability
-- maintainability
-- portability
-- safety
-- deterministic behavior
+- 可读性
+- 可维护性
+- 可移植性
+- 安全性
+- 确定的执行行为
 
-The style is inspired by MISRA-C, Linux Kernel Style, AUTOSAR C Guidelines, and STM32 firmware best practices — adapted for practical use in small-to-medium embedded projects rather than rigid compliance.
+本规范参考 MISRA-C、Linux 内核编码风格、AUTOSAR C 指南和 STM32 固件开发实践，并针对中小型嵌入式项目的实际使用进行调整，不以严格满足这些标准为目标。
 
-This skill applies whenever generating, modifying, reviewing, or refactoring C code.
+生成、修改、评审或重构 C 代码时均适用本技能。
 
-Priority order when making trade-offs: **Safety > Determinism > Maintainability > Readability**.
+需要权衡时，优先级为：**安全性 > 确定性 > 可维护性 > 可读性**。
 
-## Interface Boundary Rule
+## 接口边界规则
 
-Application and business modules shall never call HAL APIs directly.
+应用层和业务模块不得直接调用 HAL API。
 
-Forbidden in `app/` and `module/`:
+`app/` 和 `module/` 中禁止以下调用：
 
 ```c
 HAL_GPIO_WritePin()
@@ -42,15 +40,15 @@ HAL_SPI_Transmit()
 HAL_I2C_Master_Transmit()
 ```
 
-Only `interface/` and `bsp/` layers may access vendor HAL APIs.
+只有 `interface/` 和 `bsp/` 层可以访问厂商 HAL API。
 
-## Naming Rules
+## 命名规则
 
-### Type Naming
+### 类型命名
 
-Format: `typename_t`
+格式：`typename_t`。
 
-Required:
+应使用：
 
 ```c
 motor_t
@@ -59,7 +57,7 @@ pid_t
 uart_config_t
 ```
 
-Forbidden:
+禁止：
 
 ```c
 Motor
@@ -68,11 +66,11 @@ PIDStruct
 UART_CONFIG
 ```
 
-### Function Naming
+### 函数命名
 
-Format: `module_action()` — lowercase, underscore-separated.
+格式：`module_action()`，使用小写字母和下划线。
 
-Required:
+应使用：
 
 ```c
 motor_init()
@@ -81,7 +79,7 @@ imu_read()
 pid_update()
 ```
 
-Forbidden:
+禁止：
 
 ```c
 InitMotor()
@@ -89,17 +87,17 @@ ReadIMU()
 PID()
 ```
 
-Internal (file-scope) functions must be declared `static`:
+文件内部函数必须声明为 `static`：
 
 ```c
 static void motor_update(void);
 ```
 
-### Macro Naming
+### 宏命名
 
-Format: `MODULE_DESCRIPTION` — uppercase, underscore-separated.
+格式：`MODULE_DESCRIPTION`，使用大写字母和下划线。
 
-Required:
+应使用：
 
 ```c
 MOTOR_MAX_SPEED_RPM
@@ -107,18 +105,18 @@ UART_RX_BUFFER_SIZE
 PID_DEFAULT_KP
 ```
 
-Forbidden:
+禁止：
 
 ```c
 MaxSpeed
 bufferSize
 ```
 
-## Type Rules
+## 类型规则
 
-Always use `<stdint.h>` fixed-width types.
+始终使用 `<stdint.h>` 中的定宽类型。
 
-Forbidden:
+禁止：
 
 ```c
 int
@@ -127,7 +125,7 @@ long
 unsigned
 ```
 
-Required:
+应使用：
 
 ```c
 uint8_t
@@ -138,7 +136,7 @@ int16_t
 int32_t
 ```
 
-Booleans must use `<stdbool.h>`:
+布尔值必须使用 `<stdbool.h>`：
 
 ```c
 #include <stdbool.h>
@@ -146,73 +144,73 @@ Booleans must use `<stdbool.h>`:
 bool ready;
 ```
 
-Forbidden as boolean substitutes:
+禁止用以下类型代替布尔类型：
 
 ```c
 u8 flag;
 uint8_t status;
 ```
 
-## Variable Rules
+## 变量规则
 
-### Global Variables
+### 全局变量
 
-Plain global variables are forbidden:
-
-```c
-int speed;  // forbidden
-```
-
-File-private statics are allowed:
+禁止直接暴露普通全局变量：
 
 ```c
-static int32_t speed;  // allowed
+int speed;  // 禁止
 ```
 
-Cross-module access must go through interface functions:
+允许使用文件私有的静态变量：
 
 ```c
-motor_get_speed()  // correct
+static int32_t speed;  // 允许
 ```
 
-Not:
+跨模块访问必须通过接口函数：
 
 ```c
-extern int speed;  // forbidden
+motor_get_speed()  // 正确
 ```
 
-### `const` Preference
+不得使用：
 
-Immutable data must be declared `const`:
+```c
+extern int speed;  // 禁止
+```
+
+### 优先使用 `const`
+
+不可修改的数据必须声明为 `const`：
 
 ```c
 static const uint8_t crc_table[256];
 static const float pid_gains[3] = {1.0f, 0.1f, 0.05f};
 ```
 
-### `volatile` Discipline
+### `volatile` 使用约束
 
-`volatile` is only allowed for:
+`volatile` 只允许用于：
 
-- ISR-shared variables
-- DMA status variables
-- Memory-mapped peripheral registers
-
-```c
-volatile bool uart_rx_done;  // correct
-```
-
-Forbidden on ordinary variables:
+- 与 ISR 共享的变量
+- DMA 状态变量
+- 内存映射外设寄存器
 
 ```c
-volatile int count;  // forbidden
+volatile bool uart_rx_done;  // 正确
 ```
 
-## Function Rules
+禁止用于普通变量：
 
-### Parameter Validation
+```c
+volatile int count;  // 禁止
+```
 
-Pointer parameters must be checked before dereference:
+## 函数规则
+
+### 参数检查
+
+解引用指针参数前必须先检查：
 
 ```c
 if (ptr == NULL) {
@@ -220,15 +218,15 @@ if (ptr == NULL) {
 }
 ```
 
-Forbidden:
+禁止：
 
 ```c
-ptr->data = 1;  // no null check
+ptr->data = 1;  // 未检查空指针
 ```
 
-### Return Value Checking
+### 返回值检查
 
-Callers must check return values:
+调用者必须检查返回值：
 
 ```c
 ret = uart_write(...);
@@ -237,23 +235,23 @@ if (ret != ERR_OK) {
 }
 ```
 
-Forbidden:
+禁止：
 
 ```c
-uart_write(...);  // return value ignored
+uart_write(...);  // 忽略返回值
 ```
 
-## Macro Rules
+## 宏规则
 
-### No Magic Numbers
+### 禁止魔法数字
 
-Forbidden:
+禁止：
 
 ```c
 if (speed > 123)
 ```
 
-Required:
+应使用：
 
 ```c
 #define MOTOR_MAX_SPEED_RPM (123U)
@@ -261,25 +259,25 @@ Required:
 if (speed > MOTOR_MAX_SPEED_RPM)
 ```
 
-### Parenthesize Macro Bodies
+### 宏体加括号
 
-Forbidden:
+禁止：
 
 ```c
 #define MAX_SPEED 100 + 20
 ```
 
-Required:
+应使用：
 
 ```c
 #define MAX_SPEED (120U)
 ```
 
-## Header Rules
+## 头文件规则
 
-### Include Guard
+### 防止重复包含
 
-Every header must use either:
+每个头文件必须采用以下方式之一：
 
 ```c
 #ifndef MOTOR_H
@@ -290,21 +288,21 @@ Every header must use either:
 #endif
 ```
 
-or:
+或：
 
 ```c
 #pragma once
 ```
 
-### Minimize Header Dependencies
+### 减少头文件依赖
 
-Prefer forward declarations over `#include` in headers:
+头文件中优先使用前向声明，减少 `#include`：
 
 ```c
-struct motor;  // forward declaration
+struct motor;  // 前向声明
 ```
 
-Rather than:
+避免：
 
 ```c
 #include "a.h"
@@ -313,11 +311,11 @@ Rather than:
 #include "d.h"
 ```
 
-## Memory Rules
+## 内存规则
 
-### No Dynamic Allocation
+### 禁止动态分配
 
-Runtime heap allocation is forbidden:
+禁止运行时堆内存分配：
 
 ```c
 malloc()
@@ -326,39 +324,39 @@ realloc()
 free()
 ```
 
-Use static allocation instead:
+改用静态分配：
 
 ```c
 static uint8_t rx_buffer[256];
 ```
 
-This prevents heap fragmentation and unpredictable allocation latency — critical for real-time embedded systems.
+这样可避免堆碎片和不可预测的分配延迟，这对实时嵌入式系统至关重要。
 
-## Concurrency Rules
+## 并发规则
 
-### Critical Sections
+### 临界区
 
-Shared resources accessed from multiple threads or ISRs must be protected:
+多个线程或 ISR 访问的共享资源必须受到保护：
 
 ```c
 osMutexAcquire(mutex_id, timeout);
-// ... access shared resource ...
+// ... 访问共享资源 ...
 osMutexRelease(mutex_id);
 ```
 
-or:
+或：
 
 ```c
 taskENTER_CRITICAL();
-// ... access shared resource ...
+// ... 访问共享资源 ...
 taskEXIT_CRITICAL();
 ```
 
-## Error Handling Rules
+## 错误处理规则
 
-### Unified Error Codes
+### 统一错误码
 
-Use a single project-wide error enum rather than magic return values:
+使用项目统一的错误枚举，避免没有明确含义的返回值：
 
 ```c
 typedef enum {
@@ -372,7 +370,7 @@ typedef enum {
 } error_t;
 ```
 
-Forbidden:
+禁止：
 
 ```c
 return -1;
@@ -380,51 +378,51 @@ return -2;
 return -3;
 ```
 
-## Documentation Rules
+## 文档规则
 
-All public interfaces must carry a Doxygen-style doc block:
+所有公开接口都必须具有 Doxygen 风格的注释块：
 
 ```c
 /**
- * @brief Set motor speed
+ * @brief 设置电机转速
  *
- * @param rpm Target speed in revolutions per minute
+ * @param rpm 目标转速，单位为转/分钟
  *
- * @return error_t ERR_OK on success
+ * @return error_t 成功时返回 ERR_OK
  */
 error_t motor_set_speed(int32_t rpm);
 ```
 
-## Validation Checklist
+## 检查清单
 
-After generating or reviewing code, verify:
+生成或评审代码后，应确认：
 
-- [ ] `<stdint.h>` types used — no bare `int`, `short`, `long`, `unsigned`
-- [ ] `<stdbool.h>` used for booleans
-- [ ] Internal functions declared `static`
-- [ ] No unchecked pointer dereference
-- [ ] No ignored return values
-- [ ] No runtime `malloc`/`free`
-- [ ] No magic numbers — all constants are named macros
-- [ ] Macro bodies parenthesized
-- [ ] Global variables minimized; cross-module access via functions
-- [ ] `const` used wherever data is immutable
-- [ ] `volatile` used only for ISR/DMA/register variables
-- [ ] Naming follows `module_action`, `typename_t`, `MACRO_NAME` conventions
-- [ ] Public interfaces have Doxygen doc blocks
-- [ ] No HAL calls in `app/` or `module/`
+- [ ] 使用 `<stdint.h>` 类型，没有直接使用 `int`、`short`、`long`、`unsigned`
+- [ ] 布尔值使用 `<stdbool.h>`
+- [ ] 内部函数声明为 `static`
+- [ ] 解引用指针前已检查
+- [ ] 没有忽略返回值
+- [ ] 运行时不调用 `malloc`/`free`
+- [ ] 没有魔法数字，所有常量均通过具名宏表示
+- [ ] 宏体已加括号
+- [ ] 尽量减少全局变量，跨模块通过函数访问
+- [ ] 不可修改的数据均使用 `const`
+- [ ] `volatile` 只用于 ISR、DMA 或寄存器相关变量
+- [ ] 命名遵循 `module_action`、`typename_t`、`MACRO_NAME` 约定
+- [ ] 公开接口具有 Doxygen 注释块
+- [ ] `app/` 和 `module/` 中没有 HAL 调用
 
-## Auto Fix Strategy
+## 自动修正策略
 
-When violations are found:
+发现违反规则的情况时：
 
-1. **Report** the violation with file and line
-2. **Explain** the embedded impact (safety, determinism, or portability risk)
-3. **Provide** corrected code inline
-4. **Refactor** automatically if the fix is mechanical
+1. **报告**问题所在的文件和行号
+2. **解释**对嵌入式系统的影响，包括安全性、确定性或可移植性风险
+3. **给出**修正后的代码
+4. 对机械性修改，自动**重构**
 
-Priority order for fixes:
+修正优先级：
 
-```
-Safety > Determinism > Maintainability > Readability
+```text
+安全性 > 确定性 > 可维护性 > 可读性
 ```

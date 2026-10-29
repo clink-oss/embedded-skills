@@ -1,194 +1,186 @@
 ---
 name: embedded-isr-design
 description: >
-  Use when generating or reviewing interrupt service routines (ISRs) for embedded firmware
-  (STM32, GD32, ESP32, FreeRTOS, bare-metal, drone flight controllers, robotics). Enforces
-  the "Fast In, Fast Out" principle — ISRs capture events and defer processing to task context.
-  Prevents common AI mistakes: protocol parsing in ISR, control algorithms in ISR, printf/malloc
-  in ISR, blocking calls, forgotten flag clearing, and missing FromISR API usage for RTOS
-  integration.
+  用于生成或评审 STM32、GD32、ESP32、FreeRTOS、裸机、无人机飞控和机器人等嵌入式固件的
+  中断服务程序（ISR）。遵循“快进快出”原则：ISR 捕获事件，将处理延后至任务上下文。
+  检查 AI 常见错误，包括在 ISR 内解析协议、执行控制算法、调用 printf/malloc、使用阻塞调用、
+  忘记清除中断标志，以及与 RTOS 交互时未使用 FromISR API。
 ---
 
-# Embedded ISR Design
+# 嵌入式中断服务程序设计
 
-## Purpose
+## 目的
 
-Design and review interrupt service routines for embedded systems.
+设计和评审嵌入式系统的中断服务程序。
 
-Goals:
+目标：
 
-- low interrupt latency
-- deterministic execution
-- minimal ISR workload
-- safe RTOS integration
-- predictable system behavior
+- 低中断延迟
+- 确定的执行过程
+- 尽量减少 ISR 工作量
+- 安全地与 RTOS 集成
+- 可预测的系统行为
 
-The core principle: **ISRs capture events, tasks process business logic.** An ISR is not a
-function — it is a hardware-triggered context switch that must execute and return as fast as
-possible.
+核心原则：**ISR 捕获事件，任务处理业务逻辑。** ISR 不应被当作普通函数看待；它属于硬件触发的上下文切换，必须尽快执行并返回。
 
-The most common and dangerous AI mistake is writing ISRs that contain protocol parsing, sensor
-fusion, PID computation, or `printf` calls. This pattern:
+AI 最常见且危险的错误，是在 ISR 中加入协议解析、传感器融合、PID 计算或 `printf` 调用。这种写法会：
 
-1. increases interrupt latency for all other interrupts (they are blocked or preempted)
-2. defeats RTOS scheduling (the scheduler only runs outside ISRs)
-3. causes DMA buffer overruns (data arrives faster than the bloated ISR processes it)
-4. introduces jitter that destabilizes control loops
-5. creates deadlock risk when ISR tries to acquire a mutex held by a preempted task
+1. 增加其他中断的响应延迟，因为它们被阻塞或抢占
+2. 干扰 RTOS 调度，因为调度器只在 ISR 之外运行
+3. 造成 DMA 缓冲区溢出，因为数据到达速度超过臃肿 ISR 的处理速度
+4. 引入抖动，破坏控制环稳定性
+5. 在 ISR 尝试获取被抢占任务持有的互斥锁时，产生死锁风险
 
-## ISR Core Principle
+## ISR 核心原则
 
-**Fast In, Fast Out** — enter quickly, do the minimum, exit immediately.
+**快进快出（Fast In, Fast Out）**：快速进入，只做必要操作，立即退出。
 
-An ISR should be measured in microseconds, not milliseconds.
+ISR 的执行时间应以微秒衡量，而不是毫秒。
 
-## ISR Responsibility Boundary
+## ISR 职责边界
 
-### Allowed in ISR — event capture only
+### ISR 中允许的操作：仅捕获事件
 
-- read hardware status register
-- clear the interrupt flag
-- capture a timestamp
-- copy a small, bounded amount of data to a buffer or register
-- set an event flag (`xTaskNotifyGiveFromISR`, `osEventFlagsSet`)
-- send to a queue (`xQueueSendFromISR`, `osMessageQueuePut`)
-- give a semaphore (`xSemaphoreGiveFromISR`)
-- start a DMA transfer
-- wake a task (`vTaskNotifyGiveFromISR`)
-- increment a bounded counter
+- 读取硬件状态寄存器
+- 清除中断标志
+- 记录时间戳
+- 将少量且有明确上限的数据复制到缓冲区或寄存器
+- 设置事件标志（`xTaskNotifyGiveFromISR`、`osEventFlagsSet`）
+- 向队列发送数据（`xQueueSendFromISR`、`osMessageQueuePut`）
+- 释放信号量（`xSemaphoreGiveFromISR`）
+- 启动 DMA 传输
+- 唤醒任务（`vTaskNotifyGiveFromISR`）
+- 递增有界计数器
 
-### Forbidden in ISR — business processing
+### ISR 中禁止的操作：业务处理
 
-- protocol parsing (JSON, protobuf, NMEA, MAVLink, custom binary)
-- attitude estimation (Mahony, Madgwick)
-- PID computation or any control law calculation
-- Kalman filter update step
-- path planning or navigation logic
-- file system operations
-- Flash memory write/erase
-- network protocol processing
-- display refresh (OLED, LCD)
-- logging output
-- complex loops with non-constant bounds
-- blocking calls of any kind
+- 协议解析，包括 JSON、protobuf、NMEA、MAVLink 和自定义二进制协议
+- 姿态估计，如 Mahony、Madgwick
+- PID 或其他控制律计算
+- 卡尔曼滤波更新
+- 路径规划或导航逻辑
+- 文件系统操作
+- Flash 写入或擦除
+- 网络协议处理
+- 显示刷新，如 OLED、LCD
+- 日志输出
+- 循环次数不固定的复杂循环
+- 任何阻塞调用
 
-## ISR Execution Time Budget
+## ISR 执行时间预算
 
-Every ISR must have a bounded and predictable execution time.
+每个 ISR 的执行时间都必须有明确上限且可预测。
 
-| ISR Type   | Maximum Recommended Execution Time |
-|------------|-----------------------------------|
-| GPIO       | < 5 µs                            |
-| UART       | < 10 µs                           |
-| SPI        | < 10 µs                           |
-| DMA        | < 10 µs                           |
-| I2C        | < 15 µs                           |
-| CAN        | < 20 µs                           |
-| Timer      | < 20 µs                           |
+| ISR 类型 | 建议的最大执行时间 |
+|----------|--------------------|
+| GPIO | < 5 µs |
+| UART | < 10 µs |
+| SPI | < 10 µs |
+| DMA | < 10 µs |
+| I2C | < 15 µs |
+| CAN | < 20 µs |
+| 定时器 | < 20 µs |
 
-Forbidden — unbounded loops in ISR:
+禁止在 ISR 中使用无明确上限的循环：
 
 ```c
-for (int i = 0; i < large_variable; i++) {  // forbidden — unbounded
+for (int i = 0; i < large_variable; i++) {  // 禁止：没有明确上限
     process(data[i]);
 }
 ```
 
-## Data Processing in ISR
+## ISR 中的数据处理
 
-Allowed — minimal data movement:
-
-```c
-rx_buf[index++] = data;       // allowed — bounded ring buffer write
-```
-
-Forbidden — heavy processing:
+允许进行最少量的数据搬运：
 
 ```c
-json_parse(&parser, byte);       // forbidden
-protobuf_decode(&msg, buf, len); // forbidden
-kalman_update(&kf, measurement); // forbidden
+rx_buf[index++] = data;       // 允许：有明确边界的环形缓冲区写入
 ```
 
-## `printf` Rule
+禁止繁重处理：
 
-`printf` (or any `printf`-family function) is strictly forbidden inside ISR context. It is:
+```c
+json_parse(&parser, byte);       // 禁止
+protobuf_decode(&msg, buf, len); // 禁止
+kalman_update(&kf, measurement); // 禁止
+```
 
-- blocking (waits on stdout which may be UART, semi-hosting, or ITM)
-- non-deterministic in execution time
-- typically not reentrant
-- extremely high latency (a single `printf` can take hundreds of microseconds to milliseconds)
+## `printf` 规则
 
-Forbidden:
+ISR 上下文中严格禁止调用 `printf` 或同系列函数，因为这些函数：
+
+- 可能阻塞，等待标准输出，而标准输出可能使用 UART、半主机或 ITM
+- 执行时间不确定
+- 通常不可重入
+- 延迟很高，单次 `printf` 可能耗时数百微秒到数毫秒
+
+禁止：
 
 ```c
 void USART1_IRQHandler(void) {
-    printf("rx byte: %02x\r\n", data);  // forbidden
+    printf("rx byte: %02x\r\n", data);  // 禁止
 }
 ```
 
-## Dynamic Memory Rule
+## 动态内存规则
 
-Heap allocation functions are strictly forbidden inside ISR:
-
-```c
-malloc(size);     // forbidden
-calloc(n, size);  // forbidden
-realloc(ptr, sz); // forbidden
-free(ptr);        // forbidden
-```
-
-Heap operations have non-deterministic latency (coalescing, splitting, garbage collection in
-some allocators), which violates the bounded execution requirement of ISRs.
-
-## Floating-Point Rule
-
-Extensive floating-point math is forbidden in ISR context:
+ISR 内严格禁止调用堆分配函数：
 
 ```c
-float angle = atan2f(y, x);  // forbidden — FPU operations are costly, stack-heavy
+malloc(size);     // 禁止
+calloc(n, size);  // 禁止
+realloc(ptr, sz); // 禁止
+free(ptr);        // 禁止
 ```
 
-On Cortex-M4F/M7F with FPU, a single `atan2f` can take 50–150 cycles. On Cortex-M3/M0 (no FPU),
-software float emulation adds thousands of cycles and massive stack usage.
+堆操作的延迟不确定，可能涉及合并、分割，部分分配器还涉及垃圾回收，因此违反 ISR 执行时间必须有界的要求。
 
-## HAL Call Rules
+## 浮点运算规则
 
-Allowed — interrupt handler dispatch calls that clear hardware state:
+ISR 中禁止大量浮点计算：
 
 ```c
-HAL_UART_IRQHandler(&huart1);  // allowed — dispatches to HAL RX/TX/error callbacks
-HAL_DMA_IRQHandler(&hdma);     // allowed
+float angle = atan2f(y, x);  // 禁止：FPU 运算开销大、栈占用高
 ```
 
-Forbidden — blocking HAL operations in ISR:
+在带 FPU 的 Cortex-M4F/M7F 上，单次 `atan2f` 可能需要 50–150 个周期。在不带 FPU 的 Cortex-M3/M0 上，软件浮点模拟会增加数千个周期，并占用大量栈空间。
+
+## HAL 调用规则
+
+允许调用处理中断分发和硬件状态清除的函数：
 
 ```c
-HAL_UART_Transmit(&huart1, data, len, timeout);  // forbidden — blocking, polling
-HAL_SPI_Transmit(&hspi1, data, len, timeout);    // forbidden
-HAL_Delay(ms);                                    // forbidden — SysTick-based blocking
+HAL_UART_IRQHandler(&huart1);  // 允许：分发至 HAL 接收、发送或错误回调
+HAL_DMA_IRQHandler(&hdma);     // 允许
 ```
 
-## DMA Co-Design
+ISR 中禁止阻塞式 HAL 操作：
 
-Correct — DMA completion signals a task to process data:
+```c
+HAL_UART_Transmit(&huart1, data, len, timeout);  // 禁止：阻塞、轮询
+HAL_SPI_Transmit(&hspi1, data, len, timeout);    // 禁止
+HAL_Delay(ms);                                    // 禁止：基于 SysTick 的阻塞
+```
+
+## DMA 协同设计
+
+正确做法：DMA 完成后通知任务处理数据。
 
 ```text
-DMA Complete IRQ → [Event Flag / TaskNotify] → Task → Process Data
+DMA 完成中断 → [事件标志 / 任务通知] → 任务 → 数据处理
 ```
 
-Incorrect — DMA ISR runs the processing inline:
+错误做法：直接在 DMA ISR 中处理数据。
 
 ```text
-DMA Complete IRQ → Parse Protocol → Control Logic  (forbidden)
+DMA 完成中断 → 协议解析 → 控制逻辑（禁止）
 ```
 
-## RTOS Integration Rules
+## RTOS 集成规则
 
-When using an RTOS (FreeRTOS, CMSIS-RTOS2, RT-Thread, Zephyr), ISR-to-task communication
-**must** use the `FromISR` variants of RTOS APIs:
+使用 FreeRTOS、CMSIS-RTOS2、RT-Thread、Zephyr 等 RTOS 时，ISR 与任务通信**必须**使用 RTOS API 的 `FromISR` 版本。
 
-Required for FreeRTOS:
+FreeRTOS 应使用：
 
 ```c
 xQueueSendFromISR(queue, &data, &higherPriorityTaskWoken);
@@ -197,158 +189,155 @@ xSemaphoreGiveFromISR(semaphore, &higherPriorityTaskWoken);
 portYIELD_FROM_ISR(higherPriorityTaskWoken);
 ```
 
-Required for CMSIS-RTOS2:
+CMSIS-RTOS2 应使用：
 
 ```c
-osMessageQueuePut(queue, &data, 0, timeout);      // allowed in ISR
-osEventFlagsSet(flags, mask);                     // allowed in ISR
+osMessageQueuePut(queue, &data, 0, timeout);      // 允许在 ISR 中使用
+osEventFlagsSet(flags, mask);                     // 允许在 ISR 中使用
 ```
 
-Forbidden — non-FromISR APIs inside ISR:
+禁止在 ISR 中使用非 `FromISR` API：
 
 ```c
-xQueueSend(queue, &data, timeout);     // forbidden
-osMessageQueuePut(queue, &data, ...);  // forbidden with non-zero timeout
-xSemaphoreGive(semaphore);             // forbidden
+xQueueSend(queue, &data, timeout);     // 禁止
+osMessageQueuePut(queue, &data, ...);  // timeout 非零时禁止
+xSemaphoreGive(semaphore);             // 禁止
 ```
 
-Always check `higherPriorityTaskWoken` and call `portYIELD_FROM_ISR()` if true, so the
-scheduler runs before returning to the outermost interrupt.
+始终检查 `higherPriorityTaskWoken`，为真时调用 `portYIELD_FROM_ISR()`，以便在退出最外层中断前触发调度。
 
-## Interrupt Priority Rules
+## 中断优先级规则
 
-Interrupt priorities must reflect real-time criticality, not convenience:
+中断优先级必须按实时性要求分配，而非图省事：
 
 ```text
-Highest Priority
+最高优先级
     ↑
-    Timer Control   (control loop tick — highest, hard real-time)
+    定时器控制（控制环节拍，最高，硬实时）
     ↑
-    DMA             (data throughput, buffer management)
+    DMA（数据吞吐、缓冲区管理）
     ↑
-    SPI / I2C       (sensor data streaming)
+    SPI / I2C（传感器数据流）
     ↑
-    UART            (communication — lower priority than control)
+    UART（通信，优先级低于控制）
     ↑
-    EXTI            (user buttons, low-speed events)
+    EXTI（用户按键、低速事件）
     ↑
-Lowest Priority
+最低优先级
 ```
 
-For a flight controller:
+飞控示例：
 
 ```text
-TIM Update IRQ      priority 0 (highest — control loop tick)
-IMU Data Ready IRQ  priority 1
-SPI DMA IRQ          priority 2
-UART IRQ             priority 3
-EXTI (button)       priority 4
+TIM 更新中断        优先级 0（最高，控制环节拍）
+IMU 数据就绪中断    优先级 1
+SPI DMA 中断        优先级 2
+UART 中断           优先级 3
+EXTI（按键）        优先级 4
 ```
 
-**Control-related interrupts must have higher priority than communication interrupts.**
-This prevents a burst of UART data from delaying the control loop.
+**控制相关中断的优先级必须高于通信中断。** 避免 UART 突发数据延误控制环。
 
-## Shared Data Rules
+## 共享数据规则
 
-Bare global variables shared between ISR and task context must be protected. The preferred
-mechanisms (in order of preference) are:
+ISR 和任务上下文共享的普通全局变量必须受到保护。优先采用以下机制，按推荐顺序排列：
 
-1. **Queue** — ISR enqueues, task dequeues
+1. **队列**：ISR 入队，任务出队。
 
    ```c
    // ISR
    xQueueSendFromISR(rx_queue, &byte, &woken);
 
-   // Task
+   // 任务
    xQueueReceive(rx_queue, &byte, portMAX_DELAY);
    ```
 
-2. **Double buffer** — ISR writes to one buffer, task reads the other
+2. **双缓冲**：ISR 写入一个缓冲区，任务读取另一个。
 
    ```c
    static uint8_t buf[2][256];
    static uint8_t active_buf = 0;
    static uint16_t index = 0;
 
-   // ISR: fill active buffer
+   // ISR：填充当前缓冲区
    buf[active_buf][index++] = byte;
 
-   // Task: when buffer is full, swap and process
+   // 任务：缓冲区填满后交换并处理
    ```
 
-3. **Event flag + single reader** — for simple status sharing
+3. **事件标志 + 单一读取者**：适用于简单状态共享。
 
    ```c
    // ISR
    vTaskNotifyGiveFromISR(consumer_task, &woken);
 
-   // Task
+   // 任务
    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
    ```
 
-Forbidden — unstructured shared global with no synchronization:
+禁止在没有同步机制的情况下随意共享全局变量：
 
 ```c
-volatile imu_t imu_data;  // ISR writes, task reads — no synchronization
+volatile imu_t imu_data;  // ISR 写入，任务读取，没有同步
 
 // ISR
-imu_data = sensor_read();     // problematic
+imu_data = sensor_read();     // 存在问题
 
-// Task
-process(&imu_data);           // data may be partially updated
+// 任务
+process(&imu_data);           // 可能读到只更新了一部分的数据
 ```
 
-### Ring Buffer for UART Reception
+### UART 接收使用环形缓冲区
 
-For UART RX, use a ring buffer rather than parsing in the ISR:
+UART 接收应使用环形缓冲区，不要在 ISR 中解析：
 
 ```text
-UART IRQ → Ring Buffer → UART Task → Protocol Parser
+UART 中断 → 环形缓冲区 → UART 任务 → 协议解析器
 ```
 
 ```c
 // ISR
 ringbuf_put(&uart_rx_ring, rx_byte);
 
-// Task
+// 任务
 uint8_t byte;
 ringbuf_get(&uart_rx_ring, &byte);
-// parse protocol here — in task context
+// 在这里解析协议，运行于任务上下文
 ```
 
-## Timer ISR Rules
+## 定时器 ISR 规则
 
-A timer ISR should only be responsible for:
+定时器 ISR 应只负责：
 
-- generating the system tick (`osKernelGetTickCount`)
-- triggering periodic event flags
-- capturing input capture timestamps
-- incrementing a counter for timekeeping
+- 生成系统节拍（`osKernelGetTickCount`）
+- 触发周期性事件标志
+- 记录输入捕获时间戳
+- 递增计时用计数器
 
-Forbidden in timer ISR:
+定时器 ISR 中禁止：
 
 ```c
 void TIM_IRQHandler(void) {
     HAL_TIM_IRQHandler(&htim);
 
-    pid_update();           // forbidden — control algorithm belongs in task
-    telemetry_send();       // forbidden — communication belongs in task
-    sensor_fusion_update(); // forbidden — estimation belongs in task
+    pid_update();           // 禁止：控制算法属于任务职责
+    telemetry_send();       // 禁止：通信属于任务职责
+    sensor_fusion_update(); // 禁止：估计运算属于任务职责
 }
 ```
 
-## ISR Design Patterns
+## ISR 设计模式
 
-### Flag Pattern — single binary event
+### 标志模式：单个二值事件
 
 ```c
 void EXTI_IRQHandler(void) {
-    data_ready = true;     // simple flag, checked by task poll
+    data_ready = true;     // 简单标志，由任务轮询检查
     EXTI->PR1 |= (1U << 0);
 }
 ```
 
-### Queue Pattern — data streaming
+### 队列模式：数据流
 
 ```c
 void USART1_IRQHandler(void) {
@@ -360,7 +349,7 @@ void USART1_IRQHandler(void) {
 }
 ```
 
-### Event Pattern — task notification
+### 事件模式：任务通知
 
 ```c
 void DMA2_IRQHandler(void) {
@@ -371,7 +360,7 @@ void DMA2_IRQHandler(void) {
 }
 ```
 
-### Ring Buffer Pattern — buffered UART RX
+### 环形缓冲区模式：缓冲 UART 接收数据
 
 ```c
 void USART1_IRQHandler(void) {
@@ -381,58 +370,56 @@ void USART1_IRQHandler(void) {
 }
 ```
 
-## Flight Controller Special Rules
+## 飞控专项规则
 
-For flight controller and robotics applications specifically:
+飞控和机器人应用尤其需要遵守以下要求。
 
-Forbidden — running Mahony/PID inside IMU data-ready ISR:
-
-```text
-IMU IRQ → Mahony → PID → PWM  (all in ISR — forbidden)
-```
-
-Required — ISR signals the control task:
+禁止在 IMU 数据就绪 ISR 中运行 Mahony 或 PID：
 
 ```text
-IMU IRQ → [TaskNotify]
-           ↓
-       Control Task (1 kHz)
-           ↓
-       Mahony → PID → PWM
+IMU 中断 → Mahony → PID → PWM（全部在 ISR 内，禁止）
 ```
 
-With this pattern, the control loop period is determined by the RTOS scheduler, not by the
-ISR execution time. ISR latency accumulates into control loop jitter — keeping ISRs minimal
-ensures consistent and predictable control timing.
+应由 ISR 通知控制任务：
 
-## Validation Checklist
+```text
+IMU 中断 → [任务通知]
+             ↓
+         控制任务（1 kHz）
+             ↓
+         Mahony → PID → PWM
+```
 
-After generating ISR code, verify:
+采用这种模式，控制环周期由 RTOS 调度器决定，而非 ISR 执行时间。ISR 延迟会累积为控制环抖动，尽量缩短 ISR 才能保证控制时序一致、可预测。
 
-- [ ] ISR has a single, clearly defined responsibility
-- [ ] ISR execution time is bounded and predictable
-- [ ] No complex loops with variable bounds in ISR
-- [ ] No protocol parsing in ISR
-- [ ] No control algorithm computation in ISR
-- [ ] No `printf` or logging in ISR
-- [ ] No `malloc`/`free` or heap operations in ISR
-- [ ] No blocking calls (HAL_Delay, polling waits) in ISR
-- [ ] RTOS `FromISR` APIs used where applicable
-- [ ] Interrupt flag correctly cleared
-- [ ] Event notification or queue used for ISR→task handoff
-- [ ] ISR responsibilities separated from task responsibilities
-- [ ] No business logic in ISR
-- [ ] DMA ISR defers processing to task context
-- [ ] if RTOS: `portYIELD_FROM_ISR()` called when task wake is requested
+## 检查清单
 
-## Auto Fix Strategy
+生成 ISR 代码后，应确认：
 
-When ISR violations are found:
+- [ ] ISR 具有单一且明确的职责
+- [ ] ISR 执行时间有明确上限且可预测
+- [ ] ISR 中没有循环次数可变的复杂循环
+- [ ] ISR 中没有协议解析
+- [ ] ISR 中没有控制算法计算
+- [ ] ISR 中没有 `printf` 或日志输出
+- [ ] ISR 中没有 `malloc`、`free` 或其他堆操作
+- [ ] ISR 中没有 `HAL_Delay`、轮询等待等阻塞调用
+- [ ] 在适用场景使用 RTOS 的 `FromISR` API
+- [ ] 正确清除中断标志
+- [ ] 通过事件通知或队列实现 ISR 到任务的交接
+- [ ] ISR 职责与任务职责分离
+- [ ] ISR 中没有业务逻辑
+- [ ] DMA ISR 将数据处理延后至任务上下文
+- [ ] 使用 RTOS 时，请求唤醒任务后调用了 `portYIELD_FROM_ISR()`
 
-1. **Identify** heavy operations inside the ISR (parsing, math, loops, blocking calls)
-2. **Move** those operations into a dedicated task context
-3. **Replace** direct shared-variable ISR→task communication with queue, event, or ring buffer
-4. **Replace** blocking APIs with non-blocking or `FromISR` variants
-5. **Introduce** a ring buffer for serial data accumulation if needed
-6. **Recalculate** worst-case interrupt latency after the changes
-7. **Revalidate** the full ISR design against the checklist
+## 自动修正策略
+
+发现 ISR 违反规则时：
+
+1. **识别** ISR 中的繁重操作，包括解析、数学计算、循环和阻塞调用
+2. 将这些操作**移入**专门的任务上下文
+3. 用队列、事件或环形缓冲区**替换** ISR 与任务间直接共享变量的通信方式
+4. 将阻塞 API **替换**为非阻塞或 `FromISR` 版本
+5. 必要时**引入**环形缓冲区以积累串口数据
+6. 修改后**重新计算**最坏情况下的中断延迟
+7. 按检查清单**重新验证**完整的 ISR 设计
